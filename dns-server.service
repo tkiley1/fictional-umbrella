@@ -1,0 +1,26 @@
+[Unit]
+Description=Simple DNS Server
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/dns-server
+ExecStart=/usr/bin/python3 /opt/dns-server/dns_server.py
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/dns-server
+
+[Install]
+WantedBy=multi-user.target 

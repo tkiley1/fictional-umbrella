@@ -1,0 +1,7 @@
+# Simple DNS Server Requirements
+# This implementation uses only Python standard library modules
+# No external dependencies required
+
+# Optional: For advanced features you could add:
+# dnspython>=2.0.0  # For more advanced DNS features
+# pyyaml>=6.0       # For YAML configuration support 

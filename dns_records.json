@@ -1,0 +1,46 @@
+{
+  "records": [
+    {
+      "domain": "example.local",
+      "type": "A",
+      "value": "192.168.1.100",
+      "ttl": 300
+    },
+    {
+      "domain": "example.local",
+      "type": "AAAA",
+      "value": "::1",
+      "ttl": 300
+    },
+    {
+      "domain": "test.local",
+      "type": "A",
+      "value": "10.0.0.1",
+      "ttl": 300
+    },
+    {
+      "domain": "ns.local",
+      "type": "A",
+      "value": "127.0.0.1",
+      "ttl": 300
+    },
+    {
+      "domain": "web.local",
+      "type": "A",
+      "value": "192.168.1.10",
+      "ttl": 600
+    },
+    {
+      "domain": "mail.local",
+      "type": "A",
+      "value": "192.168.1.20",
+      "ttl": 600
+    },
+    {
+      "domain": "api.local",
+      "type": "A",
+      "value": "192.168.1.30",
+      "ttl": 300
+    }
+  ]
+} 
