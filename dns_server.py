@@ -66,8 +66,21 @@ class DNSWebHandler(BaseHTTPRequestHandler):
         global _global_dns_server
         self.dns_server = _global_dns_server
 
+    def setup(self):
+        """Called before handle_one_request"""
+        super().setup()
+        # Ensure dns_server is set in case __init__ wasn't called properly
+        if not hasattr(self, 'dns_server') or self.dns_server is None:
+            global _global_dns_server
+            self.dns_server = _global_dns_server
+
     def do_GET(self):
         """Handle GET requests"""
+        # Ensure dns_server is available
+        if not hasattr(self, 'dns_server') or self.dns_server is None:
+            global _global_dns_server
+            self.dns_server = _global_dns_server
+            
         parsed_url = urlparse(self.path)
         path = parsed_url.path
 
@@ -121,6 +134,11 @@ class DNSWebHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         """Handle POST requests for adding/editing records"""
+        # Ensure dns_server is available
+        if not hasattr(self, 'dns_server') or self.dns_server is None:
+            global _global_dns_server
+            self.dns_server = _global_dns_server
+            
         content_length = int(self.headers['Content-Length'])
         post_data = self.rfile.read(content_length).decode('utf-8')
 
@@ -326,6 +344,11 @@ class DNSWebHandler(BaseHTTPRequestHandler):
     def get_records_json(self):
         """Get DNS records as JSON"""
         try:
+            # Ensure dns_server is available
+            if not hasattr(self, 'dns_server') or self.dns_server is None:
+                global _global_dns_server
+                self.dns_server = _global_dns_server
+                
             records_list = []
             logger.debug(f"Serializing {len(self.dns_server.records)} domains")
 
@@ -352,9 +375,10 @@ class DNSWebHandler(BaseHTTPRequestHandler):
             return json.dumps(records_list, ensure_ascii=False)
         except Exception as e:
             logger.error(f"Error serializing records: {e}")
-            logger.error(
-                f"Records object type: {type(self.dns_server.records)}")
-            logger.error(f"Records content: {self.dns_server.records}")
+            if hasattr(self, 'dns_server') and self.dns_server:
+                logger.error(
+                    f"Records object type: {type(self.dns_server.records)}")
+                logger.error(f"Records content: {self.dns_server.records}")
             # Return empty array as fallback
             return json.dumps([], ensure_ascii=False)
 
