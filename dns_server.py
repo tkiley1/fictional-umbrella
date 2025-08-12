@@ -29,8 +29,8 @@ logger = logging.getLogger(__name__)
 _global_dns_server = None
 
 # Simple authentication - you can change these credentials
-AUTH_USERNAME = "admin"
-AUTH_PASSWORD = "password123"
+AUTH_USERNAME = "tkiley"
+AUTH_PASSWORD = "test"
 
 # Store active sessions (in a real app, you'd use a database)
 active_sessions = {}
@@ -169,6 +169,14 @@ class DNSWebHandler(BaseHTTPRequestHandler):
         if path == '/login':
             self.handle_login()
             return
+        elif path == '/api/change-password':
+            # Check authentication for password change
+            if not self.is_authenticated():
+                self.send_unauthorized_response()
+                return
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length).decode('utf-8')
+            self.handle_change_password(post_data)
         elif path == '/api/records/add':
             # Check authentication for API endpoints
             if not self.is_authenticated():
@@ -372,6 +380,44 @@ class DNSWebHandler(BaseHTTPRequestHandler):
 
         except Exception as e:
             self.send_error_response(f"Error resetting records: {str(e)}")
+
+    def handle_change_password(self, post_data):
+        """Handle changing the user password"""
+        global AUTH_PASSWORD
+        try:
+            data = json.loads(post_data)
+            current_password = data.get('current_password', '').strip()
+            new_password = data.get('new_password', '').strip()
+            confirm_password = data.get('confirm_password', '').strip()
+
+            if not all([current_password, new_password, confirm_password]):
+                self.send_error_response("All fields are required")
+                return
+
+            # Verify current password
+            if current_password != AUTH_PASSWORD:
+                self.send_error_response("Current password is incorrect")
+                return
+
+            # Check if new passwords match
+            if new_password != confirm_password:
+                self.send_error_response("New passwords do not match")
+                return
+
+            # Check password length
+            if len(new_password) < 4:
+                self.send_error_response(
+                    "New password must be at least 4 characters long")
+                return
+
+            # Update password
+            AUTH_PASSWORD = new_password
+            self.send_success_response("Password changed successfully")
+
+        except json.JSONDecodeError:
+            self.send_error_response("Invalid JSON data received")
+        except Exception as e:
+            self.send_error_response(f"Error changing password: {str(e)}")
 
     def send_success_response(self, message):
         """Send a success response"""
@@ -603,11 +649,7 @@ class DNSWebHandler(BaseHTTPRequestHandler):
     <div class="login-container">
         <h1>DNS Records Manager</h1>
         
-        <div class="info">
-            <strong>Default Credentials:</strong><br>
-            Username: admin<br>
-            Password: password123
-        </div>
+        
         
         {f'<div class="error">{error_message}</div>' if error_message else ''}
         
@@ -742,7 +784,10 @@ class DNSWebHandler(BaseHTTPRequestHandler):
     <div class="container">
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
             <h1 style="margin: 0;">DNS Records Manager</h1>
-            <a href="/logout" style="background-color: #6c757d; color: white; padding: 8px 16px; text-decoration: none; border-radius: 4px;">Logout</a>
+            <div style="display: flex; gap: 10px;">
+                <button onclick="showChangePasswordForm()" style="background-color: #28a745; color: white; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer;">Change Password</button>
+                <a href="/logout" style="background-color: #6c757d; color: white; padding: 8px 16px; text-decoration: none; border-radius: 4px;">Logout</a>
+            </div>
         </div>
         
         <div id="message"></div>
@@ -826,11 +871,32 @@ class DNSWebHandler(BaseHTTPRequestHandler):
                 </thead>
                 <tbody id="recordsTableBody">
                 </tbody>
-            </table>
-        </div>
-    </div>
+                         </table>
+         </div>
+         
+         <!-- Change Password Form (Hidden by default) -->
+         <div id="changePasswordForm" class="form-section" style="display: none;">
+             <h2>Change Password</h2>
+             <form id="passwordForm">
+                 <div class="form-group">
+                     <label for="currentPassword">Current Password:</label>
+                     <input type="password" id="currentPassword" name="currentPassword" required>
+                 </div>
+                 <div class="form-group">
+                     <label for="newPassword">New Password:</label>
+                     <input type="password" id="newPassword" name="newPassword" required minlength="4">
+                 </div>
+                 <div class="form-group">
+                     <label for="confirmPassword">Confirm New Password:</label>
+                     <input type="password" id="confirmPassword" name="confirmPassword" required minlength="4">
+                 </div>
+                 <button type="submit">Change Password</button>
+                 <button type="button" onclick="hideChangePasswordForm()" style="background-color: #6c757d;">Cancel</button>
+             </form>
+         </div>
+     </div>
 
-    <script>
+     <script>
         // Load records on page load
         document.addEventListener('DOMContentLoaded', function() {
             loadRecords();
@@ -1018,19 +1084,59 @@ class DNSWebHandler(BaseHTTPRequestHandler):
             });
         }
         
-        function showMessage(message, isSuccess) {
-            const messageDiv = document.getElementById('message');
-            messageDiv.className = 'message ' + (isSuccess ? 'success' : 'error');
-            messageDiv.textContent = message;
-            
-            setTimeout(() => {
-                messageDiv.textContent = '';
-                messageDiv.className = 'message';
-            }, 5000);
-        }
-    </script>
-</body>
-</html>
+                 function showMessage(message, isSuccess) {
+             const messageDiv = document.getElementById('message');
+             messageDiv.className = 'message ' + (isSuccess ? 'success' : 'error');
+             messageDiv.textContent = message;
+             
+             setTimeout(() => {
+                 messageDiv.textContent = '';
+                 messageDiv.className = 'message';
+             }, 5000);
+         }
+         
+         // Change password form handler
+         document.getElementById('passwordForm').addEventListener('submit', function(e) {
+             e.preventDefault();
+             const formData = new FormData(e.target);
+             const data = {
+                 current_password: formData.get('currentPassword'),
+                 new_password: formData.get('newPassword'),
+                 confirm_password: formData.get('confirmPassword')
+             };
+             
+             fetch('/api/change-password', {
+                 method: 'POST',
+                 headers: {
+                     'Content-Type': 'application/json',
+                 },
+                 body: JSON.stringify(data)
+             })
+             .then(response => response.json())
+             .then(data => {
+                 showMessage(data.message, data.success);
+                 if (data.success) {
+                     e.target.reset();
+                     hideChangePasswordForm();
+                 }
+             })
+             .catch(error => {
+                 showMessage('Error: ' + error.message, false);
+             });
+         });
+         
+         function showChangePasswordForm() {
+             document.getElementById('changePasswordForm').style.display = 'block';
+             document.getElementById('currentPassword').focus();
+         }
+         
+         function hideChangePasswordForm() {
+             document.getElementById('changePasswordForm').style.display = 'none';
+             document.getElementById('passwordForm').reset();
+         }
+     </script>
+ </body>
+ </html>
         """
 
 
