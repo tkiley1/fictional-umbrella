@@ -28,6 +28,13 @@ logger = logging.getLogger(__name__)
 # Global variable to store the DNS server instance
 _global_dns_server = None
 
+# Simple authentication - you can change these credentials
+AUTH_USERNAME = "admin"
+AUTH_PASSWORD = "password123"
+
+# Store active sessions (in a real app, you'd use a database)
+active_sessions = {}
+
 
 class DNSRecord:
     """Represents a DNS record"""
@@ -80,16 +87,29 @@ class DNSWebHandler(BaseHTTPRequestHandler):
         if not hasattr(self, 'dns_server') or self.dns_server is None:
             global _global_dns_server
             self.dns_server = _global_dns_server
-            
+
         parsed_url = urlparse(self.path)
         path = parsed_url.path
 
         if path == '/':
+            # Check authentication for main page
+            if not self.is_authenticated():
+                self.send_login_page()
+                return
             self.send_response(200)
             self.send_header('Content-type', 'text/html')
             self.end_headers()
             self.wfile.write(self.get_main_page().encode())
+        elif path == '/login':
+            self.send_login_page()
+        elif path == '/logout':
+            self.logout()
+            self.send_login_page()
         elif path == '/api/records':
+            # Check authentication for API endpoints
+            if not self.is_authenticated():
+                self.send_unauthorized_response()
+                return
             try:
                 records_json = self.get_records_json()
                 self.send_response(200)
@@ -105,6 +125,10 @@ class DNSWebHandler(BaseHTTPRequestHandler):
                     {'error': 'Internal server error', 'details': str(e)})
                 self.wfile.write(error_response.encode('utf-8'))
         elif path == '/api/debug':
+            # Check authentication for debug endpoint
+            if not self.is_authenticated():
+                self.send_unauthorized_response()
+                return
             # Debug endpoint to check server state
             try:
                 debug_info = {
@@ -138,20 +162,44 @@ class DNSWebHandler(BaseHTTPRequestHandler):
         if not hasattr(self, 'dns_server') or self.dns_server is None:
             global _global_dns_server
             self.dns_server = _global_dns_server
-            
-        content_length = int(self.headers['Content-Length'])
-        post_data = self.rfile.read(content_length).decode('utf-8')
 
         parsed_url = urlparse(self.path)
         path = parsed_url.path
 
-        if path == '/api/records/add':
+        if path == '/login':
+            self.handle_login()
+            return
+        elif path == '/api/records/add':
+            # Check authentication for API endpoints
+            if not self.is_authenticated():
+                self.send_unauthorized_response()
+                return
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length).decode('utf-8')
             self.handle_add_record(post_data)
         elif path == '/api/records/edit':
+            # Check authentication for API endpoints
+            if not self.is_authenticated():
+                self.send_unauthorized_response()
+                return
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length).decode('utf-8')
             self.handle_edit_record(post_data)
         elif path == '/api/records/delete':
+            # Check authentication for API endpoints
+            if not self.is_authenticated():
+                self.send_unauthorized_response()
+                return
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length).decode('utf-8')
             self.handle_delete_record(post_data)
         elif path == '/api/records/reset':
+            # Check authentication for API endpoints
+            if not self.is_authenticated():
+                self.send_unauthorized_response()
+                return
+            content_length = int(self.headers['Content-Length'])
+            post_data = self.rfile.read(content_length).decode('utf-8')
             self.handle_reset_records(post_data)
         else:
             self.send_response(404)
@@ -348,7 +396,7 @@ class DNSWebHandler(BaseHTTPRequestHandler):
             if not hasattr(self, 'dns_server') or self.dns_server is None:
                 global _global_dns_server
                 self.dns_server = _global_dns_server
-                
+
             records_list = []
             logger.debug(f"Serializing {len(self.dns_server.records)} domains")
 
@@ -381,6 +429,203 @@ class DNSWebHandler(BaseHTTPRequestHandler):
                 logger.error(f"Records content: {self.dns_server.records}")
             # Return empty array as fallback
             return json.dumps([], ensure_ascii=False)
+
+    def is_authenticated(self):
+        """Check if the user is authenticated"""
+        global active_sessions
+        cookie_header = self.headers.get('Cookie', '')
+        if 'session_id=' in cookie_header:
+            session_id = cookie_header.split('session_id=')[1].split(';')[0]
+            if session_id in active_sessions:
+                # Check if session is still valid (24 hours)
+                if time.time() - active_sessions[session_id] < 86400:
+                    return True
+                else:
+                    # Session expired, remove it
+                    del active_sessions[session_id]
+        return False
+
+    def generate_session_id(self):
+        """Generate a unique session ID"""
+        import secrets
+        return secrets.token_hex(16)
+
+    def handle_login(self):
+        """Handle login form submission"""
+        global active_sessions, AUTH_USERNAME, AUTH_PASSWORD
+
+        content_length = int(self.headers['Content-Length'])
+        post_data = self.rfile.read(content_length).decode('utf-8')
+
+        try:
+            # Parse form data
+            form_data = {}
+            for item in post_data.split('&'):
+                if '=' in item:
+                    key, value = item.split('=', 1)
+                    form_data[key] = value
+
+            username = form_data.get('username', '')
+            password = form_data.get('password', '')
+
+            if username == AUTH_USERNAME and password == AUTH_PASSWORD:
+                # Login successful
+                session_id = self.generate_session_id()
+                active_sessions[session_id] = time.time()
+
+                self.send_response(302)  # Redirect
+                self.send_header('Location', '/')
+                self.send_header(
+                    'Set-Cookie', f'session_id={session_id}; Path=/; HttpOnly')
+                self.end_headers()
+            else:
+                # Login failed
+                self.send_login_page("Invalid username or password")
+        except Exception as e:
+            logger.error(f"Login error: {e}")
+            self.send_login_page("Login error occurred")
+
+    def logout(self):
+        """Handle logout"""
+        global active_sessions
+        cookie_header = self.headers.get('Cookie', '')
+        if 'session_id=' in cookie_header:
+            session_id = cookie_header.split('session_id=')[1].split(';')[0]
+            if session_id in active_sessions:
+                del active_sessions[session_id]
+
+        self.send_response(302)  # Redirect
+        self.send_header('Location', '/login')
+        self.send_header(
+            'Set-Cookie', 'session_id=; Path=/; HttpOnly; Max-Age=0')
+        self.end_headers()
+
+    def send_login_page(self, error_message=""):
+        """Send the login page"""
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        self.end_headers()
+        self.wfile.write(self.get_login_page(error_message).encode())
+
+    def send_unauthorized_response(self):
+        """Send unauthorized response"""
+        self.send_response(401)
+        self.send_header('Content-type', 'application/json')
+        self.end_headers()
+        error_response = json.dumps(
+            {'error': 'Unauthorized', 'message': 'Authentication required'})
+        self.wfile.write(error_response.encode())
+
+    def get_login_page(self, error_message=""):
+        """Get the login HTML page"""
+        return f"""
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DNS Records Manager - Login</title>
+    <style>
+        body {{
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }}
+        .login-container {{
+            background: white;
+            padding: 40px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 400px;
+        }}
+        h1 {{
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }}
+        .form-group {{
+            margin-bottom: 20px;
+        }}
+        label {{
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #333;
+        }}
+        input[type="text"], input[type="password"] {{
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 16px;
+        }}
+        button {{
+            background-color: #007bff;
+            color: white;
+            padding: 12px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            font-size: 16px;
+            margin-top: 10px;
+        }}
+        button:hover {{
+            background-color: #0056b3;
+        }}
+        .error {{
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }}
+        .info {{
+            background-color: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+            padding: 10px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }}
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h1>DNS Records Manager</h1>
+        
+        <div class="info">
+            <strong>Default Credentials:</strong><br>
+            Username: admin<br>
+            Password: password123
+        </div>
+        
+        {f'<div class="error">{error_message}</div>' if error_message else ''}
+        
+        <form method="POST" action="/login">
+            <div class="form-group">
+                <label for="username">Username:</label>
+                <input type="text" id="username" name="username" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Password:</label>
+                <input type="password" id="password" name="password" required>
+            </div>
+            <button type="submit">Login</button>
+        </form>
+    </div>
+</body>
+</html>
+        """
 
     def get_main_page(self):
         """Get the main HTML page"""
@@ -495,7 +740,10 @@ class DNSWebHandler(BaseHTTPRequestHandler):
 </head>
 <body>
     <div class="container">
-        <h1>DNS Records Manager</h1>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h1 style="margin: 0;">DNS Records Manager</h1>
+            <a href="/logout" style="background-color: #6c757d; color: white; padding: 8px 16px; text-decoration: none; border-radius: 4px;">Logout</a>
+        </div>
         
         <div id="message"></div>
         
