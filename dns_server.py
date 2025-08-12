@@ -10,6 +10,7 @@ import threading
 import json
 import logging
 import time
+import os
 from typing import Dict, List, Tuple, Optional
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
@@ -87,17 +88,26 @@ class DNSWebHandler(BaseHTTPRequestHandler):
                 self.wfile.write(error_response.encode('utf-8'))
         elif path == '/api/debug':
             # Debug endpoint to check server state
-            debug_info = {
-                'records_count': len(self.dns_server.records),
-                'domains': list(self.dns_server.records.keys()),
-                'server_type': str(type(self.dns_server)),
-                'records_type': str(type(self.dns_server.records))
-            }
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps(
-                debug_info, ensure_ascii=False).encode('utf-8'))
+            try:
+                debug_info = {
+                    'records_count': len(self.dns_server.records),
+                    'domains': list(self.dns_server.records.keys()),
+                    'server_type': str(type(self.dns_server)),
+                    'records_type': str(type(self.dns_server.records)),
+                    'records_content': str(self.dns_server.records),
+                    'config_file_exists': os.path.exists(self.dns_server.config_file) if hasattr(self.dns_server, 'config_file') else False
+                }
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                self.wfile.write(json.dumps(
+                    debug_info, ensure_ascii=False).encode('utf-8'))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                error_response = json.dumps({'error': 'Debug error', 'details': str(e)})
+                self.wfile.write(error_response.encode('utf-8'))
         else:
             self.send_response(404)
             self.end_headers()
@@ -525,6 +535,7 @@ class DNSWebHandler(BaseHTTPRequestHandler):
             <h2>Current DNS Records</h2>
             <button onclick="loadRecords()">Refresh Records</button>
             <button onclick="resetRecords()" style="background-color: #ffc107; color: #000;">Reset to Default</button>
+            <button onclick="debugServer()" style="background-color: #17a2b8; color: #fff;">Debug Server</button>
             <table class="records-table">
                 <thead>
                     <tr>
@@ -614,10 +625,28 @@ class DNSWebHandler(BaseHTTPRequestHandler):
         
         function loadRecords() {{
             fetch('/api/records')
-            .then(response => response.json())
-            .then(records => {{
+            .then(response => {{
+                if (!response.ok) {{
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }}
+                return response.json();
+            }})
+            .then(data => {{
+                // Check if we got an error response
+                if (data.error) {{
+                    throw new Error(data.error + (data.details ? ': ' + data.details : ''));
+                }}
+                
+                // Ensure records is an array
+                const records = Array.isArray(data) ? data : [];
+                
                 const tbody = document.getElementById('recordsTableBody');
                 tbody.innerHTML = '';
+                
+                if (records.length === 0) {{
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #666;">No DNS records found</td></tr>';
+                    return;
+                }}
                 
                 records.forEach(record => {{
                     const row = document.createElement('tr');
@@ -635,7 +664,10 @@ class DNSWebHandler(BaseHTTPRequestHandler):
                 }});
             }})
             .catch(error => {{
+                console.error('Error loading records:', error);
                 showMessage('Error loading records: ' + error.message, false);
+                const tbody = document.getElementById('recordsTableBody');
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #dc3545;">Failed to load records</td></tr>';
             }});
         }}
         
@@ -693,6 +725,19 @@ class DNSWebHandler(BaseHTTPRequestHandler):
                     showMessage('Error: ' + error.message, false);
                 }});
             }}
+        }}
+        
+        function debugServer() {{
+            fetch('/api/debug')
+            .then(response => response.json())
+            .then(data => {{
+                console.log('Debug info:', data);
+                showMessage('Debug info logged to console. Check browser developer tools.', true);
+            }})
+            .catch(error => {{
+                console.error('Debug error:', error);
+                showMessage('Debug error: ' + error.message, false);
+            }});
         }}
         
         function showMessage(message, isSuccess) {{
