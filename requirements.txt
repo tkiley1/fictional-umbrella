@@ -1,6 +1,6 @@
 # Simple DNS Server Requirements
-# This implementation uses only Python standard library modules
-# No external dependencies required
+# Core dependencies
+watchdog>=3.0.0  # For file watching and auto-reload functionality
 
 # Optional: For advanced features you could add:
 # dnspython>=2.0.0  # For more advanced DNS features
