@@ -57,9 +57,10 @@ class ConfigFileHandler(FileSystemEventHandler):
 class DNSWebHandler(BaseHTTPRequestHandler):
     """HTTP request handler for DNS management web interface"""
 
-    def __init__(self, *args, dns_server=None, **kwargs):
-        self.dns_server = dns_server
+    def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # The dns_server will be set by the server
+        self.dns_server = None
 
     def do_GET(self):
         """Handle GET requests"""
@@ -800,10 +801,15 @@ class DNSServer:
             # Create a custom handler class that has access to the DNS server
             class WebHandler(DNSWebHandler):
                 def __init__(self, *args, **kwargs):
-                    super().__init__(*args, dns_server=self, **kwargs)
+                    super().__init__(*args, **kwargs)
+                    # Set the dns_server after initialization
+                    self.dns_server = self.server.dns_server
 
+            # Store the DNS server instance in the HTTP server
             self.web_server = HTTPServer(
                 (self.host, self.web_port), WebHandler)
+            self.web_server.dns_server = self
+
             web_thread = threading.Thread(
                 target=self.web_server.serve_forever, daemon=True)
             web_thread.start()
