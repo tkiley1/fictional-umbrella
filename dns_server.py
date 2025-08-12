@@ -106,7 +106,8 @@ class DNSWebHandler(BaseHTTPRequestHandler):
                 self.send_response(500)
                 self.send_header('Content-type', 'application/json')
                 self.end_headers()
-                error_response = json.dumps({'error': 'Debug error', 'details': str(e)})
+                error_response = json.dumps(
+                    {'error': 'Debug error', 'details': str(e)})
                 self.wfile.write(error_response.encode('utf-8'))
         else:
             self.send_response(404)
@@ -354,7 +355,7 @@ class DNSWebHandler(BaseHTTPRequestHandler):
 
     def get_main_page(self):
         """Get the main HTML page"""
-        return f"""
+        return """
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -362,52 +363,52 @@ class DNSWebHandler(BaseHTTPRequestHandler):
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DNS Records Manager</title>
     <style>
-        body {{
+        body {
             font-family: Arial, sans-serif;
             max-width: 1200px;
             margin: 0 auto;
             padding: 20px;
             background-color: #f5f5f5;
-        }}
-        .container {{
+        }
+        .container {
             background: white;
             padding: 30px;
             border-radius: 10px;
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }}
-        h1 {{
+        }
+        h1 {
             color: #333;
             text-align: center;
             margin-bottom: 30px;
-        }}
-        .form-section {{
+        }
+        .form-section {
             margin-bottom: 30px;
             padding: 20px;
             border: 1px solid #ddd;
             border-radius: 5px;
             background-color: #fafafa;
-        }}
-        .form-section h2 {{
+        }
+        .form-section h2 {
             margin-top: 0;
             color: #555;
-        }}
-        .form-group {{
+        }
+        .form-group {
             margin-bottom: 15px;
-        }}
-        label {{
+        }
+        label {
             display: block;
             margin-bottom: 5px;
             font-weight: bold;
             color: #333;
-        }}
-        input[type="text"], input[type="number"] {{
+        }
+        input[type="text"], input[type="number"] {
             width: 100%;
             padding: 8px;
             border: 1px solid #ddd;
             border-radius: 4px;
             box-sizing: border-box;
-        }}
-        button {{
+        }
+        button {
             background-color: #007bff;
             color: white;
             padding: 10px 20px;
@@ -415,52 +416,52 @@ class DNSWebHandler(BaseHTTPRequestHandler):
             border-radius: 4px;
             cursor: pointer;
             margin-right: 10px;
-        }}
-        button:hover {{
+        }
+        button:hover {
             background-color: #0056b3;
-        }}
-        button.delete {{
+        }
+        button.delete {
             background-color: #dc3545;
-        }}
-        button.delete:hover {{
+        }
+        button.delete:hover {
             background-color: #c82333;
-        }}
-        .records-table {{
+        }
+        .records-table {
             width: 100%;
             border-collapse: collapse;
             margin-top: 20px;
-        }}
-        .records-table th, .records-table td {{
+        }
+        .records-table th, .records-table td {
             border: 1px solid #ddd;
             padding: 12px;
             text-align: left;
-        }}
-        .records-table th {{
+        }
+        .records-table th {
             background-color: #f8f9fa;
             font-weight: bold;
-        }}
-        .records-table tr:nth-child(even) {{
+        }
+        .records-table tr:nth-child(even) {
             background-color: #f2f2f2;
-        }}
-        .message {{
+        }
+        .message {
             padding: 10px;
             margin: 10px 0;
             border-radius: 4px;
-        }}
-        .success {{
+        }
+        .success {
             background-color: #d4edda;
             color: #155724;
             border: 1px solid #c3e6cb;
-        }}
-        .error {{
+        }
+        .error {
             background-color: #f8d7da;
             color: #721c24;
             border: 1px solid #f5c6cb;
-        }}
-        .action-buttons {{
+        }
+        .action-buttons {
             display: flex;
             gap: 5px;
-        }}
+        }
     </style>
 </head>
 <body>
@@ -554,46 +555,46 @@ class DNSWebHandler(BaseHTTPRequestHandler):
 
     <script>
         // Load records on page load
-        document.addEventListener('DOMContentLoaded', function() {{
+        document.addEventListener('DOMContentLoaded', function() {
             loadRecords();
-        }});
+        });
         
         // Add record form handler
-        document.getElementById('addForm').addEventListener('submit', function(e) {{
+        document.getElementById('addForm').addEventListener('submit', function(e) {
             e.preventDefault();
             const formData = new FormData(e.target);
-            const data = {{
+            const data = {
                 domain: formData.get('domain'),
                 type: formData.get('type'),
                 value: formData.get('value'),
                 ttl: parseInt(formData.get('ttl'))
-            }};
+            };
             
-            fetch('/api/records/add', {{
+            fetch('/api/records/add', {
                 method: 'POST',
-                headers: {{
+                headers: {
                     'Content-Type': 'application/json',
-                }},
+                },
                 body: JSON.stringify(data)
-            }})
+            })
             .then(response => response.json())
-            .then(data => {{
+            .then(data => {
                 showMessage(data.message, data.success);
-                if (data.success) {{
+                if (data.success) {
                     e.target.reset();
                     loadRecords();
-                }}
-            }})
-            .catch(error => {{
+                }
+            })
+            .catch(error => {
                 showMessage('Error: ' + error.message, false);
-            }});
-        }});
+            });
+        });
         
         // Edit record form handler
-        document.getElementById('editForm').addEventListener('submit', function(e) {{
+        document.getElementById('editForm').addEventListener('submit', function(e) {
             e.preventDefault();
             const formData = new FormData(e.target);
-            const data = {{
+            const data = {
                 old_domain: formData.get('oldDomain'),
                 old_type: formData.get('oldType'),
                 old_value: formData.get('oldValue'),
@@ -601,41 +602,41 @@ class DNSWebHandler(BaseHTTPRequestHandler):
                 new_type: formData.get('newType'),
                 new_value: formData.get('newValue'),
                 new_ttl: parseInt(formData.get('newTtl'))
-            }};
+            };
             
-            fetch('/api/records/edit', {{
+            fetch('/api/records/edit', {
                 method: 'POST',
-                headers: {{
+                headers: {
                     'Content-Type': 'application/json',
-                }},
+                },
                 body: JSON.stringify(data)
-            }})
+            })
             .then(response => response.json())
-            .then(data => {{
+            .then(data => {
                 showMessage(data.message, data.success);
-                if (data.success) {{
+                if (data.success) {
                     e.target.reset();
                     loadRecords();
-                }}
-            }})
-            .catch(error => {{
+                }
+            })
+            .catch(error => {
                 showMessage('Error: ' + error.message, false);
-            }});
-        }});
+            });
+        });
         
-        function loadRecords() {{
+        function loadRecords() {
             fetch('/api/records')
-            .then(response => {{
-                if (!response.ok) {{
+            .then(response => {
+                if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }}
+                }
                 return response.json();
-            }})
-            .then(data => {{
+            })
+            .then(data => {
                 // Check if we got an error response
-                if (data.error) {{
+                if (data.error) {
                     throw new Error(data.error + (data.details ? ': ' + data.details : ''));
-                }}
+                }
                 
                 // Ensure records is an array
                 const records = Array.isArray(data) ? data : [];
@@ -643,35 +644,35 @@ class DNSWebHandler(BaseHTTPRequestHandler):
                 const tbody = document.getElementById('recordsTableBody');
                 tbody.innerHTML = '';
                 
-                if (records.length === 0) {{
+                if (records.length === 0) {
                     tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #666;">No DNS records found</td></tr>';
                     return;
-                }}
+                }
                 
-                records.forEach(record => {{
+                records.forEach(record => {
                     const row = document.createElement('tr');
                     row.innerHTML = `
-                        <td>${{html.escape(record.domain)}}</td>
-                        <td>${{html.escape(record.type)}}</td>
-                        <td>${{html.escape(record.value)}}</td>
-                        <td>${{record.ttl}}</td>
+                        <td>${record.domain}</td>
+                        <td>${record.type}</td>
+                        <td>${record.value}</td>
+                        <td>${record.ttl}</td>
                         <td class="action-buttons">
-                            <button onclick="editRecord('${{html.escape(record.domain)}}', '${{html.escape(record.type)}}', '${{html.escape(record.value)}}', ${{record.ttl}})">Edit</button>
-                            <button class="delete" onclick="deleteRecord('${{html.escape(record.domain)}}', '${{html.escape(record.type)}}', '${{html.escape(record.value)}}')">Delete</button>
+                            <button onclick="editRecord('${record.domain}', '${record.type}', '${record.value}', ${record.ttl})">Edit</button>
+                            <button class="delete" onclick="deleteRecord('${record.domain}', '${record.type}', '${record.value}')">Delete</button>
                         </td>
                     `;
                     tbody.appendChild(row);
-                }});
-            }})
-            .catch(error => {{
+                });
+            })
+            .catch(error => {
                 console.error('Error loading records:', error);
                 showMessage('Error loading records: ' + error.message, false);
                 const tbody = document.getElementById('recordsTableBody');
                 tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #dc3545;">Failed to load records</td></tr>';
-            }});
-        }}
+            });
+        }
         
-        function editRecord(domain, type, value, ttl) {{
+        function editRecord(domain, type, value, ttl) {
             document.getElementById('editOldDomain').value = domain;
             document.getElementById('editOldType').value = type;
             document.getElementById('editOldValue').value = value;
@@ -679,77 +680,77 @@ class DNSWebHandler(BaseHTTPRequestHandler):
             document.getElementById('editNewType').value = type;
             document.getElementById('editNewValue').value = value;
             document.getElementById('editNewTtl').value = ttl;
-        }}
+        }
         
-        function deleteRecord(domain, type, value) {{
-            if (confirm('Are you sure you want to delete this record?')) {{
-                const data = {{ domain, type, value }};
+        function deleteRecord(domain, type, value) {
+            if (confirm('Are you sure you want to delete this record?')) {
+                const data = { domain, type, value };
                 
-                fetch('/api/records/delete', {{
+                fetch('/api/records/delete', {
                     method: 'POST',
-                    headers: {{
+                    headers: {
                         'Content-Type': 'application/json',
-                    }},
+                    },
                     body: JSON.stringify(data)
-                }})
+                })
                 .then(response => response.json())
-                .then(data => {{
+                .then(data => {
                     showMessage(data.message, data.success);
-                    if (data.success) {{
+                    if (data.success) {
                         loadRecords();
-                    }}
-                }})
-                .catch(error => {{
+                    }
+                })
+                .catch(error => {
                     showMessage('Error: ' + error.message, false);
-                }});
-            }}
-        }}
+                });
+            }
+        }
         
-        function resetRecords() {{
-            if (confirm('Are you sure you want to reset all records to default? This will delete all current records.')) {{
-                fetch('/api/records/reset', {{
+        function resetRecords() {
+            if (confirm('Are you sure you want to reset all records to default? This will delete all current records.')) {
+                fetch('/api/records/reset', {
                     method: 'POST',
-                    headers: {{
+                    headers: {
                         'Content-Type': 'application/json',
-                    }},
-                    body: JSON.stringify({{}})
-                }})
+                    },
+                    body: JSON.stringify({})
+                })
                 .then(response => response.json())
-                .then(data => {{
+                .then(data => {
                     showMessage(data.message, data.success);
-                    if (data.success) {{
+                    if (data.success) {
                         loadRecords();
-                    }}
-                }})
-                .catch(error => {{
+                    }
+                })
+                .catch(error => {
                     showMessage('Error: ' + error.message, false);
-                }});
-            }}
-        }}
+                });
+            }
+        }
         
-        function debugServer() {{
+        function debugServer() {
             fetch('/api/debug')
             .then(response => response.json())
-            .then(data => {{
+            .then(data => {
                 console.log('Debug info:', data);
                 showMessage('Debug info logged to console. Check browser developer tools.', true);
-            }})
-            .catch(error => {{
+            })
+            .catch(error => {
                 console.error('Debug error:', error);
                 showMessage('Debug error: ' + error.message, false);
-            }});
-        }}
+            });
+        }
         
-        function showMessage(message, isSuccess) {{
+        function showMessage(message, isSuccess) {
             const messageDiv = document.getElementById('message');
             messageDiv.className = 'message ' + (isSuccess ? 'success' : 'error');
             messageDiv.textContent = message;
             
-            setTimeout(() => {{
+            setTimeout(() => {
                 messageDiv.textContent = '';
                 messageDiv.className = 'message';
-            }}, 5000);
-        }}
+            }, 5000);
+        }
     </script>
 </body>
 </html>
