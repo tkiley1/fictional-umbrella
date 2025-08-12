@@ -94,6 +94,8 @@ class DNSWebHandler(BaseHTTPRequestHandler):
             self.handle_edit_record(post_data)
         elif path == '/api/records/delete':
             self.handle_delete_record(post_data)
+        elif path == '/api/records/reset':
+            self.handle_reset_records(post_data)
         else:
             self.send_response(404)
             self.end_headers()
@@ -119,10 +121,20 @@ class DNSWebHandler(BaseHTTPRequestHandler):
             self.dns_server.records[domain].append(record)
 
             # Save to file
-            self.dns_server.save_records()
+            try:
+                self.dns_server.save_records()
+                self.send_success_response("Record added successfully")
+            except Exception as save_error:
+                # Remove the record if save failed
+                self.dns_server.records[domain].remove(record)
+                if not self.dns_server.records[domain]:
+                    del self.dns_server.records[domain]
+                self.send_error_response(f"Error saving record: {str(save_error)}")
 
-            self.send_success_response("Record added successfully")
-
+        except json.JSONDecodeError:
+            self.send_error_response("Invalid JSON data received")
+        except ValueError as e:
+            self.send_error_response(f"Invalid data format: {str(e)}")
         except Exception as e:
             self.send_error_response(f"Error adding record: {str(e)}")
 
@@ -163,14 +175,30 @@ class DNSWebHandler(BaseHTTPRequestHandler):
                         self.dns_server.records[new_domain].append(new_record)
 
                         # Save to file
-                        self.dns_server.save_records()
-
-                        self.send_success_response(
-                            "Record updated successfully")
+                        try:
+                            self.dns_server.save_records()
+                            self.send_success_response("Record updated successfully")
+                        except Exception as save_error:
+                            # Revert changes if save failed
+                            if new_domain in self.dns_server.records:
+                                self.dns_server.records[new_domain].remove(new_record)
+                                if not self.dns_server.records[new_domain]:
+                                    del self.dns_server.records[new_domain]
+                            
+                            # Restore old record
+                            if old_domain not in self.dns_server.records:
+                                self.dns_server.records[old_domain] = []
+                            self.dns_server.records[old_domain].append(record)
+                            
+                            self.send_error_response(f"Error saving record: {str(save_error)}")
                         return
 
             self.send_error_response("Record not found")
 
+        except json.JSONDecodeError:
+            self.send_error_response("Invalid JSON data received")
+        except ValueError as e:
+            self.send_error_response(f"Invalid data format: {str(e)}")
         except Exception as e:
             self.send_error_response(f"Error updating record: {str(e)}")
 
@@ -198,16 +226,39 @@ class DNSWebHandler(BaseHTTPRequestHandler):
                             del self.dns_server.records[domain]
 
                         # Save to file
-                        self.dns_server.save_records()
-
-                        self.send_success_response(
-                            "Record deleted successfully")
+                        try:
+                            self.dns_server.save_records()
+                            self.send_success_response("Record deleted successfully")
+                        except Exception as save_error:
+                            # Restore the record if save failed
+                            if domain not in self.dns_server.records:
+                                self.dns_server.records[domain] = []
+                            self.dns_server.records[domain].append(record)
+                            self.send_error_response(f"Error saving record: {str(save_error)}")
                         return
 
             self.send_error_response("Record not found")
 
+        except json.JSONDecodeError:
+            self.send_error_response("Invalid JSON data received")
         except Exception as e:
             self.send_error_response(f"Error deleting record: {str(e)}")
+
+    def handle_reset_records(self, post_data):
+        """Handle resetting DNS records to default"""
+        try:
+            # Create default records
+            self.dns_server.create_default_records()
+            
+            # Save to file
+            try:
+                self.dns_server.save_records()
+                self.send_success_response("Records reset to default successfully")
+            except Exception as save_error:
+                self.send_error_response(f"Error saving default records: {str(save_error)}")
+                
+        except Exception as e:
+            self.send_error_response(f"Error resetting records: {str(e)}")
 
     def send_success_response(self, message):
         """Send a success response"""
@@ -227,16 +278,20 @@ class DNSWebHandler(BaseHTTPRequestHandler):
 
     def get_records_json(self):
         """Get DNS records as JSON"""
-        records_list = []
-        for domain, domain_records in self.dns_server.records.items():
-            for record in domain_records:
-                records_list.append({
-                    'domain': record.domain,
-                    'type': record.record_type,
-                    'value': record.value,
-                    'ttl': record.ttl
-                })
-        return json.dumps(records_list)
+        try:
+            records_list = []
+            for domain, domain_records in self.dns_server.records.items():
+                for record in domain_records:
+                    records_list.append({
+                        'domain': record.domain,
+                        'type': record.record_type,
+                        'value': record.value,
+                        'ttl': record.ttl
+                    })
+            return json.dumps(records_list)
+        except Exception as e:
+            logger.error(f"Error serializing records: {e}")
+            return json.dumps([])
 
     def get_main_page(self):
         """Get the main HTML page"""
@@ -420,6 +475,7 @@ class DNSWebHandler(BaseHTTPRequestHandler):
         <div class="form-section">
             <h2>Current DNS Records</h2>
             <button onclick="loadRecords()">Refresh Records</button>
+            <button onclick="resetRecords()" style="background-color: #ffc107; color: #000;">Reset to Default</button>
             <table class="records-table">
                 <thead>
                     <tr>
@@ -568,6 +624,28 @@ class DNSWebHandler(BaseHTTPRequestHandler):
             }}
         }}
         
+        function resetRecords() {{
+            if (confirm('Are you sure you want to reset all records to default? This will delete all current records.')) {{
+                fetch('/api/records/reset', {{
+                    method: 'POST',
+                    headers: {{
+                        'Content-Type': 'application/json',
+                    }},
+                    body: JSON.stringify({{}})
+                }})
+                .then(response => response.json())
+                .then(data => {{
+                    showMessage(data.message, data.success);
+                    if (data.success) {{
+                        loadRecords();
+                    }}
+                }})
+                .catch(error => {{
+                    showMessage('Error: ' + error.message, false);
+                }});
+            }}
+        }}
+        
         function showMessage(message, isSuccess) {{
             const messageDiv = document.getElementById('message');
             messageDiv.className = 'message ' + (isSuccess ? 'success' : 'error');
@@ -645,6 +723,18 @@ class DNSServer:
             self.web_server.shutdown()
             logger.info("Web server stopped")
 
+    def backup_corrupted_file(self):
+        """Create a backup of the corrupted config file"""
+        try:
+            import shutil
+            from datetime import datetime
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_name = f"{self.config_file}.backup_{timestamp}"
+            shutil.copy2(self.config_file, backup_name)
+            logger.info(f"Created backup: {backup_name}")
+        except Exception as e:
+            logger.error(f"Failed to create backup: {e}")
+
     def save_records(self):
         """Save DNS records to configuration file"""
         try:
@@ -659,19 +749,44 @@ class DNSServer:
                     })
 
             config = {'records': records_list}
-            with open(self.config_file, 'w') as f:
-                json.dump(config, f, indent=2)
-
-            logger.info(
-                f"Saved {len(records_list)} DNS records to {self.config_file}")
+            
+            # Write to a temporary file first, then rename to avoid corruption
+            import tempfile
+            import os
+            
+            temp_file = tempfile.NamedTemporaryFile(mode='w', delete=False, dir='.')
+            try:
+                json.dump(config, temp_file, indent=2)
+                temp_file.close()
+                
+                # Atomic rename to avoid corruption
+                os.replace(temp_file.name, self.config_file)
+                
+                logger.info(f"Saved {len(records_list)} DNS records to {self.config_file}")
+            except Exception as e:
+                # Clean up temp file if something went wrong
+                try:
+                    os.unlink(temp_file.name)
+                except:
+                    pass
+                raise e
+                
         except Exception as e:
             logger.error(f"Error saving records: {e}")
+            raise
 
     def load_records(self):
         """Load DNS records from configuration file"""
         try:
             with open(self.config_file, 'r') as f:
-                config = json.load(f)
+                content = f.read().strip()
+                
+            if not content:
+                logger.warning(f"Configuration file {self.config_file} is empty. Using default records.")
+                self.create_default_records()
+                return
+                
+            config = json.loads(content)
 
             self.records = {}
             for record_data in config.get('records', []):
@@ -693,6 +808,11 @@ class DNSServer:
         except FileNotFoundError:
             logger.warning(
                 f"Configuration file {self.config_file} not found. Using default records.")
+            self.create_default_records()
+        except json.JSONDecodeError as e:
+            logger.error(f"Invalid JSON in {self.config_file}: {e}")
+            logger.info("Creating backup of corrupted file and using default records.")
+            self.backup_corrupted_file()
             self.create_default_records()
         except Exception as e:
             logger.error(f"Error loading records: {e}")
