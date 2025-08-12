@@ -25,6 +25,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Global variable to store the DNS server instance
+_global_dns_server = None
+
 
 class DNSRecord:
     """Represents a DNS record"""
@@ -59,8 +62,9 @@ class DNSWebHandler(BaseHTTPRequestHandler):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # The dns_server will be set by the server
-        self.dns_server = None
+        # Get the DNS server from the global variable
+        global _global_dns_server
+        self.dns_server = _global_dns_server
 
     def do_GET(self):
         """Handle GET requests"""
@@ -798,17 +802,13 @@ class DNSServer:
     def start_web_server(self):
         """Start the web server for DNS management"""
         try:
-            # Create a custom handler class that has access to the DNS server
-            class WebHandler(DNSWebHandler):
-                def __init__(self, *args, **kwargs):
-                    super().__init__(*args, **kwargs)
-                    # Set the dns_server after initialization
-                    self.dns_server = self.server.dns_server
+            # Set the global DNS server instance
+            global _global_dns_server
+            _global_dns_server = self
 
-            # Store the DNS server instance in the HTTP server
+            # Create the HTTP server with the handler
             self.web_server = HTTPServer(
-                (self.host, self.web_port), WebHandler)
-            self.web_server.dns_server = self
+                (self.host, self.web_port), DNSWebHandler)
 
             web_thread = threading.Thread(
                 target=self.web_server.serve_forever, daemon=True)
