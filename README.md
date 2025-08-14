@@ -5,12 +5,14 @@ A lightweight, configurable DNS server implementation in Python that can handle 
 ## Features
 
 - **Lightweight**: Pure Python implementation using only standard library modules
-- **Configurable**: JSON-based configuration for DNS records
+- **Database Storage**: SQLite database for reliable DNS record storage
+- **Web Interface**: Built-in web management interface for DNS records
 - **Multi-threaded**: Handles multiple concurrent requests
 - **IPv4 & IPv6 Support**: Supports both A and AAAA records
 - **DNS Forwarding**: Forwards unknown queries to upstream DNS servers (Google DNS by default)
 - **Logging**: Comprehensive logging for monitoring and debugging
 - **Cross-platform**: Works on Linux, macOS, and Windows
+- **Migration Support**: Tools to migrate from JSON to database storage
 
 ## Supported Record Types
 
@@ -24,6 +26,7 @@ A lightweight, configurable DNS server implementation in Python that can handle 
 
 - Python 3.6 or higher
 - Root/sudo access (required for binding to port 53)
+- SQLite3 (built-in with Python)
 
 ### Installation
 
@@ -43,6 +46,12 @@ A lightweight, configurable DNS server implementation in Python that can handle 
    chmod +x dns_server.py
    ```
 
+3. **Migration from JSON (if upgrading from previous version):**
+   ```bash
+   # If you have existing JSON records, migrate them to the database
+   python3 migrate_to_database.py --backup
+   ```
+
 ### Basic Usage
 
 1. **Start the DNS server** (requires sudo for port 53):
@@ -50,7 +59,17 @@ A lightweight, configurable DNS server implementation in Python that can handle 
    sudo python3 dns_server.py
    ```
 
-2. **Test the DNS server**:
+2. **Access the web interface**:
+   ```bash
+   # Open in your browser
+   http://localhost:80
+   
+   # Default credentials:
+   # Username: tkiley
+   # Password: test
+   ```
+
+3. **Test the DNS server**:
    ```bash
    # Test local records
    dig @localhost example.local
@@ -74,25 +93,45 @@ A lightweight, configurable DNS server implementation in Python that can handle 
 
 ### Configuration
 
-Edit the `dns_records.json` file to add your own DNS records:
+#### Web Interface (Recommended)
 
-```json
-{
-  "records": [
-    {
-      "domain": "mysite.local",
-      "type": "A",
-      "value": "192.168.1.100",
-      "ttl": 300
-    },
-    {
-      "domain": "mysite.local",
-      "type": "AAAA",
-      "value": "2001:db8::1",
-      "ttl": 300
-    }
-  ]
-}
+The easiest way to manage DNS records is through the built-in web interface:
+
+1. Start the DNS server
+2. Open `http://localhost:80` in your browser
+3. Login with the default credentials (username: `tkiley`, password: `test`)
+4. Use the web interface to add, edit, and delete DNS records
+
+#### Database Management
+
+DNS records are stored in a SQLite database (`dns_records.db` by default). You can manage records directly:
+
+```python
+from dns_database import DNSDatabase
+
+# Initialize database
+db = DNSDatabase('dns_records.db')
+
+# Add a record
+db.add_record('mysite.local', 'A', '192.168.1.100', 300)
+
+# Get all records
+records = db.get_all_records()
+
+# Delete a record
+db.delete_record('mysite.local', 'A', '192.168.1.100')
+```
+
+#### Migration from JSON
+
+If you have existing JSON records, use the migration script:
+
+```bash
+# Migrate with backup
+python3 migrate_to_database.py --backup
+
+# Migrate with custom paths
+python3 migrate_to_database.py --json old_records.json --db new_database.db
 ```
 
 ### Advanced Usage
@@ -104,11 +143,11 @@ Run on a different port (useful for testing without sudo):
 python3 dns_server.py --port 5353 --host 127.0.0.1
 ```
 
-#### Custom Configuration File
+#### Custom Database File
 
-Use a different configuration file:
+Use a different database file:
 ```bash
-sudo python3 dns_server.py --config /path/to/custom_records.json
+sudo python3 dns_server.py --db /path/to/custom_dns.db
 ```
 
 #### Command Line Options
@@ -120,7 +159,8 @@ python3 dns_server.py --help
 Options:
 - `--host`: Host to bind to (default: 0.0.0.0)
 - `--port`: Port to bind to (default: 53)
-- `--config`: Configuration file path (default: dns_records.json)
+- `--web-port`: Web interface port (default: 80)
+- `--db`: Database file path (default: dns_records.db)
 - `--upstream`: Upstream DNS servers for forwarding (default: 8.8.8.8 8.8.4.4)
 
 #### DNS Forwarding
@@ -235,12 +275,13 @@ The server outputs logs to stdout. For production, redirect to a file:
 sudo python3 dns_server.py 2>&1 | tee dns_server.log
 ```
 
-### Configuration Issues
+### Database Issues
 
-If the configuration file has errors:
-1. Check JSON syntax with: `python3 -m json.tool dns_records.json`
-2. Verify record format matches the example
-3. Check file permissions: `ls -la dns_records.json`
+If the database has issues:
+1. Check database integrity: `sqlite3 dns_records.db "PRAGMA integrity_check;"`
+2. Backup and recreate: `python3 migrate_to_database.py --backup`
+3. Check file permissions: `ls -la dns_records.db`
+4. Use the web interface to verify records are accessible
 
 ## Development
 

@@ -1,6 +1,9 @@
 # Simple DNS Server Requirements
 # Core dependencies
-watchdog>=3.0.0  # For file watching and auto-reload functionality
+# No external dependencies required - using built-in Python modules
+
+# Database support
+sqlite3  # Built-in with Python, no external dependency needed
 
 # Optional: For advanced features you could add:
 # dnspython>=2.0.0  # For more advanced DNS features
